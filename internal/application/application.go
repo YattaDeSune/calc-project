@@ -3,6 +3,7 @@ package application
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -41,6 +42,8 @@ type Response struct {
 	Error  string  `json:"error,omitempty"`
 }
 
+var ErrInternalServer = errors.New("internal server error")
+
 func CalcHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -55,7 +58,7 @@ func CalcHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Обработка ошибок десириализации
 	if err != nil {
-		responce := Response{Error: calculation.ErrInternalServer.Error()}
+		responce := Response{Error: ErrInternalServer.Error()}
 		encoder.Encode(responce)
 		w.WriteHeader(http.StatusInternalServerError) // статус 500
 		fmt.Fprintln(w, buf.String())

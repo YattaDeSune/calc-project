@@ -9,5 +9,4 @@ var (
 	ErrNoClosingParenthesis = errors.New("no closing parenthesis")
 	ErrDevisionByZero       = errors.New("devision by zero")
 	ErrInvalidExpression    = errors.New("expression is not valid")
-	ErrInternalServer       = errors.New("internal server error")
 )
