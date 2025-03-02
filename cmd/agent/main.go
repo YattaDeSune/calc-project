@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/YattaDeSune/calc-project/internal/application/agent"
+	"github.com/YattaDeSune/calc-project/internal/agent"
 )
 
 func main() {

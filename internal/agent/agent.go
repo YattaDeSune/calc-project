@@ -7,22 +7,20 @@ import (
 )
 
 type Config struct {
-	Addr                   string `env:"AGENT_PORT"` // а мне все это надо ли надо ли???
-	time_addition_ms       int    `env:"TIME_ADDITION_MS"`
-	time_subtraction_ms    int    `env:"TIME_SUBTRACTION_MS"`
-	time_multiplication_ms int    `env:"TIME_MULTIPLICATIONS_MS"`
-	time_division_ms       int    `env:"TIME_DIVISIONS_MS"`
-	computing_power        int    `env:"COMPUTING_POWER"`
+	time_addition_ms       int `env:"TIME_ADDITION_MS"`
+	time_subtraction_ms    int `env:"TIME_SUBTRACTION_MS"`
+	time_multiplication_ms int `env:"TIME_MULTIPLICATIONS_MS"`
+	time_division_ms       int `env:"TIME_DIVISIONS_MS"`
+	computing_power        int `env:"COMPUTING_POWER"`
 }
 
 func GetCfgFromEnv() *Config {
 	var cfg Config
 
-	err := cleanenv.ReadEnv(&cfg)
+	err := cleanenv.ReadConfig(".env", &cfg)
 	if err != nil {
 		log.Printf("Error loading config, loaded default values: %v", err)
 		return &Config{
-			Addr:                   "8081",
 			time_addition_ms:       2000,
 			time_subtraction_ms:    2000,
 			time_multiplication_ms: 5000,

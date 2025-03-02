@@ -124,7 +124,7 @@ func evaluateRPN(tokens []string) (float64, error) {
 			case "*":
 				stack = append(stack, a*b)
 			case "/":
-				if b == 0 {
+				if b == 0 { // вынести ошибку в агент
 					return 0, ErrDevisionByZero
 				}
 				stack = append(stack, a/b)
