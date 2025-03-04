@@ -33,6 +33,7 @@ func GetCfgFromEnv() *Config {
 	return &cfg
 }
 
+// Сервер содержит в себе хранилище
 type Server struct {
 	cfg     *Config
 	storage *Storage
@@ -51,12 +52,22 @@ func (s *Server) RunServer() error {
 	mux.HandleFunc("/api/v1/calculate", s.AddExpression)
 	mux.HandleFunc("/api/v1/expressions", s.GetExpressions)
 	mux.HandleFunc("/api/v1/expressions/", s.GetExpressionByID)
-	mux.HandleFunc("/internal/task", s.GetTask)
-	mux.HandleFunc("/internal/task", s.SubmitResult)
+
+	mux.HandleFunc("/api/v1/task", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.GetTask(w, r)
+		case http.MethodPost:
+			s.SubmitResult(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
 		return err
 	}
+	log.Println("Orchestrator started")
 
 	return nil
 }

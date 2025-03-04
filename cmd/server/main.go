@@ -11,6 +11,4 @@ func main() {
 	if err := server.RunServer(); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
-
-	log.Println("orchestrator started")
 }
