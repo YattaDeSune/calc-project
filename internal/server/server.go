@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -33,7 +34,6 @@ func GetCfgFromEnv() *Config {
 	return &cfg
 }
 
-// Сервер содержит в себе хранилище
 type Server struct {
 	cfg     *Config
 	storage *Storage
@@ -46,7 +46,20 @@ func New() *Server {
 	}
 }
 
+// Фоновая проверка тасок на "живучесть", костыльная защита от падения агента
+func (s *Server) StartRecover() {
+	go func() {
+		for {
+			// Каждую минуту проверяем таски
+			time.Sleep(time.Minute)
+			s.storage.CheckAndRecoverTasks()
+		}
+	}()
+}
+
 func (s *Server) RunServer() error {
+	s.StartRecover()
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/v1/calculate", s.AddExpression)
@@ -67,7 +80,6 @@ func (s *Server) RunServer() error {
 	if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
 		return err
 	}
-	log.Println("Orchestrator started")
 
 	return nil
 }

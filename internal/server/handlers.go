@@ -184,7 +184,5 @@ func (s *Server) SubmitResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.storage.SubmitTaskResult(&result)
-
 	w.WriteHeader(http.StatusOK) // 200
-	log.Printf("")
 }
