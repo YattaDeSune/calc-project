@@ -118,6 +118,17 @@ func NextTask(rpn []string, stack []string) (arg1, arg2 string, operation string
 		return NextTask(newRPN, newStack)
 
 	case isOperation(element):
+		if element == "~" {
+			if len(stack) < 1 {
+				err = ErrShortExpression
+				return
+			}
+			arg1 = stack[len(stack)-1]
+			newStack = stack[:len(stack)-1]
+			operation = element
+			return arg1, "", operation, newRPN, newStack, nil
+		}
+
 		if len(stack) < 2 {
 			err = ErrShortExpression
 			return

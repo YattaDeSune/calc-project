@@ -146,7 +146,7 @@ func (a *Agent) processTask(task *GetTaskResponse) *SendResultResponce {
 		return &SendResultResponce{ID: task.ID, Error: ErrInvalidOperator.Error()}
 	}
 	arg2, err := strconv.ParseFloat(task.Arg2, 64)
-	if err != nil {
+	if err != nil && task.Operation != "~" {
 		return &SendResultResponce{ID: task.ID, Error: ErrInvalidOperator.Error()}
 	}
 
@@ -166,6 +166,9 @@ func (a *Agent) processTask(task *GetTaskResponse) *SendResultResponce {
 		}
 		time.Sleep(time.Duration(a.cfg.TimeDivisionMs) * time.Millisecond)
 		return &SendResultResponce{ID: task.ID, Result: arg1 / arg2}
+	case "~":
+		time.Sleep(time.Duration(a.cfg.TimeSubtractionMs) * time.Millisecond)
+		return &SendResultResponce{ID: task.ID, Result: -arg1}
 	default:
 		log.Println("Invalid operation")
 		return &SendResultResponce{ID: task.ID, Error: ErrInvalidOperation.Error()}
