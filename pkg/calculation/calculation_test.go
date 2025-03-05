@@ -1,36 +1,51 @@
 package calculation
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestCalc(t *testing.T) {
+func TestToRPN(t *testing.T) {
 	t.Run("positive", func(t *testing.T) {
 		testCases := []struct {
-			name       string
-			expression string
-			expected   float64
+			name      string
+			tokens    []string
+			expected  []string
+			expectErr bool
 		}{
 			{
-				name:       "simple expression",
-				expression: "52.2/2",
-				expected:   26.1,
+				name:      "simple expression",
+				tokens:    []string{"52.2", "/", "2"},
+				expected:  []string{"52.2", "2", "/"},
+				expectErr: false,
 			},
 			{
-				name:       "with priority",
-				expression: "52.2+23*2",
-				expected:   98.2,
+				name:      "with priority",
+				tokens:    []string{"52.2", "+", "23", "*", "2"},
+				expected:  []string{"52.2", "23", "2", "*", "+"},
+				expectErr: false,
 			},
 			{
-				name:       "with parenthesis",
-				expression: "11 * (2+4-1)",
-				expected:   55,
+				name:      "with parenthesis",
+				tokens:    []string{"11", "*", "(", "2", "+", "4", "-", "1", ")"},
+				expected:  []string{"11", "2", "4", "+", "1", "-", "*"},
+				expectErr: false,
+			},
+			{
+				name:      "unary minus",
+				tokens:    []string{"(", "-", "2", ")", "*", "3"},
+				expected:  []string{"2", "~", "3", "*"},
+				expectErr: false,
 			},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				got, _ := Calc(tc.expression)
-				if got != tc.expected {
-					t.Errorf("expected %g, but got %g", tc.expected, got)
+				got, err := ToRPN(tc.tokens)
+				if (err != nil) != tc.expectErr {
+					t.Errorf("expected error %v, but got %v", tc.expectErr, err)
+				}
+				if !equalSlices(got, tc.expected) {
+					t.Errorf("expected %v, but got %v", tc.expected, got)
 				}
 			})
 		}
@@ -39,46 +54,41 @@ func TestCalc(t *testing.T) {
 	t.Run("negative", func(t *testing.T) {
 		testCases := []struct {
 			name        string
-			expression  string
+			tokens      []string
 			expectedErr error
 		}{
 			{
 				name:        "empty expression",
-				expression:  "",
+				tokens:      []string{},
 				expectedErr: ErrEmptyExpression,
 			},
 			{
 				name:        "short expression",
-				expression:  "2+",
+				tokens:      []string{"2", "+"},
 				expectedErr: ErrShortExpression,
 			},
 			{
 				name:        "no opening parenthesis",
-				expression:  "2+4)",
+				tokens:      []string{"2", "+", "4", ")"},
 				expectedErr: ErrNoOpeningParenthesis,
 			},
 			{
 				name:        "no closing parenthesis",
-				expression:  "2+(4*2",
+				tokens:      []string{"2", "+", "(", "4", "*", "2"},
 				expectedErr: ErrNoClosingParenthesis,
 			},
 			{
-				name:        "devision by zero",
-				expression:  "6/0",
-				expectedErr: ErrDevisionByZero,
-			},
-			{
 				name:        "invalid expression",
-				expression:  "%+4",
+				tokens:      []string{"%", "+", "4"},
 				expectedErr: ErrInvalidExpression,
 			},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				_, err := Calc(tc.expression)
+				_, err := ToRPN(tc.tokens)
 				if err != tc.expectedErr {
-					t.Errorf("expected %g, but got %g", tc.expectedErr, err)
+					t.Errorf("expected error %v, but got %v", tc.expectedErr, err)
 				}
 			})
 		}
@@ -93,24 +103,29 @@ func TestTokenize(t *testing.T) {
 	}{
 		{
 			name:       "simple expression",
-			expression: "3 + 4",
-			expected:   []string{"3", "+", "4"},
+			expression: "52.2/2",
+			expected:   []string{"52.2", "/", "2"},
 		},
 		{
-			name:       "with parentheses",
-			expression: "(1 + 2) * 3",
-			expected:   []string{"(", "1", "+", "2", ")", "*", "3"},
+			name:       "with spaces",
+			expression: "52.2 + 23 * 2",
+			expected:   []string{"52.2", "+", "23", "*", "2"},
 		},
 		{
-			name:       "complex expression",
-			expression: "10 + 2 * (3 - 1)",
-			expected:   []string{"10", "+", "2", "*", "(", "3", "-", "1", ")"},
+			name:       "with parenthesis",
+			expression: "11 * (2+4-1)",
+			expected:   []string{"11", "*", "(", "2", "+", "4", "-", "1", ")"},
+		},
+		{
+			name:       "floating point numbers",
+			expression: "3.14 + 2.71",
+			expected:   []string{"3.14", "+", "2.71"},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tokenize(tc.expression)
+			got := Tokenize(tc.expression)
 			if !equalSlices(got, tc.expected) {
 				t.Errorf("expected %v, but got %v", tc.expected, got)
 			}
@@ -118,112 +133,119 @@ func TestTokenize(t *testing.T) {
 	}
 }
 
-func TestToRPN(t *testing.T) {
+func TestNextTask(t *testing.T) {
 	testCases := []struct {
-		name      string
-		tokens    []string
-		expected  []string
-		expectErr bool
+		name          string
+		rpn           []string
+		stack         []string
+		expectedArg1  string
+		expectedArg2  string
+		expectedOp    string
+		expectedRPN   []string
+		expectedStack []string
+		expectErr     bool
 	}{
 		{
-			name:     "simple expression",
-			tokens:   []string{"3", "+", "4"},
-			expected: []string{"3", "4", "+"},
+			name:          "simple operation",
+			rpn:           []string{"2", "3", "+"},
+			stack:         []string{},
+			expectedArg1:  "2",
+			expectedArg2:  "3",
+			expectedOp:    "+",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     false,
 		},
 		{
-			name:     "with parentheses",
-			tokens:   []string{"(", "1", "+", "2", ")", "*", "3"},
-			expected: []string{"1", "2", "+", "3", "*"},
+			name:          "unary operation",
+			rpn:           []string{"2", "~"},
+			stack:         []string{},
+			expectedArg1:  "2",
+			expectedArg2:  "",
+			expectedOp:    "~",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     false,
 		},
 		{
-			name:     "complex expression",
-			tokens:   []string{"10", "+", "2", "*", "(", "3", "-", "1", ")"},
-			expected: []string{"10", "2", "3", "1", "-", "*", "+"},
+			name:          "not enough operands",
+			rpn:           []string{"+"},
+			stack:         []string{"2"},
+			expectedArg1:  "",
+			expectedArg2:  "",
+			expectedOp:    "",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     true,
 		},
 		{
-			name:      "mismatched parentheses",
-			tokens:    []string{"(", "2", "+", "3"},
-			expectErr: true,
+			name:          "multiplication operation",
+			rpn:           []string{"2", "3", "*"},
+			stack:         []string{},
+			expectedArg1:  "2",
+			expectedArg2:  "3",
+			expectedOp:    "*",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     false,
 		},
 		{
-			name:      "no opening parentheses",
-			tokens:    []string{")", "2", "+", "3"},
-			expectErr: true,
+			name:          "division operation",
+			rpn:           []string{"6", "2", "/"},
+			stack:         []string{},
+			expectedArg1:  "6",
+			expectedArg2:  "2",
+			expectedOp:    "/",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     false,
+		},
+		{
+			name:          "subtraction operation",
+			rpn:           []string{"5", "3", "-"},
+			stack:         []string{},
+			expectedArg1:  "5",
+			expectedArg2:  "3",
+			expectedOp:    "-",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     false,
+		},
+		{
+			name:          "not enough operands for unary operation",
+			rpn:           []string{"~"},
+			stack:         []string{},
+			expectedArg1:  "",
+			expectedArg2:  "",
+			expectedOp:    "",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     true,
+		},
+		{
+			name:          "empty rpn",
+			rpn:           []string{},
+			stack:         []string{},
+			expectedArg1:  "",
+			expectedArg2:  "",
+			expectedOp:    "",
+			expectedRPN:   []string{},
+			expectedStack: []string{},
+			expectErr:     true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := toRPN(tc.tokens)
-			if tc.expectErr {
-				if err == nil {
-					t.Errorf("expected an error, but got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error, but got %v", err)
-				}
-				if !equalSlices(got, tc.expected) {
-					t.Errorf("expected %v, but got %v", tc.expected, got)
-				}
+			arg1, arg2, op, newRPN, newStack, err := NextTask(tc.rpn, tc.stack)
+			if (err != nil) != tc.expectErr {
+				t.Errorf("expected error %v, but got %v", tc.expectErr, err)
 			}
-		})
-	}
-}
-
-func TestEvaluateRPN(t *testing.T) {
-	testCases := []struct {
-		name      string
-		tokens    []string
-		expected  float64
-		expectErr error
-	}{
-		{
-			name:     "simple evaluation",
-			tokens:   []string{"3", "4", "+"},
-			expected: 7,
-		},
-		{
-			name:     "simple subtraction",
-			tokens:   []string{"4", "2", "-"},
-			expected: 2,
-		},
-		{
-			name:     "with multiplication",
-			tokens:   []string{"2", "3", "*", "4", "+"},
-			expected: 10,
-		},
-		{
-			name:     "division",
-			tokens:   []string{"6", "2", "/"},
-			expected: 3,
-		},
-		{
-			name:      "division by zero",
-			tokens:    []string{"6", "0", "/"},
-			expectErr: ErrDevisionByZero,
-		},
-		{
-			name:      "invalid RPN",
-			tokens:    []string{"3", "+"},
-			expectErr: ErrShortExpression,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := evaluateRPN(tc.tokens)
-			if tc.expectErr != nil {
-				if err == nil {
-					t.Errorf("expected an error, but got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error, but got %v", err)
-				}
-				if got != tc.expected {
-					t.Errorf("expected %g, but got %g", tc.expected, got)
-				}
+			if arg1 != tc.expectedArg1 || arg2 != tc.expectedArg2 || op != tc.expectedOp {
+				t.Errorf("expected args %s, %s and op %s, but got %s, %s and %s", tc.expectedArg1, tc.expectedArg2, tc.expectedOp, arg1, arg2, op)
+			}
+			if !equalSlices(newRPN, tc.expectedRPN) || !equalSlices(newStack, tc.expectedStack) {
+				t.Errorf("expected RPN %v and stack %v, but got %v and %v", tc.expectedRPN, tc.expectedStack, newRPN, newStack)
 			}
 		})
 	}

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конкурентный калькулятор</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            white-space: pre-wrap; /* Для красивого отображения JSON */
+            overflow-y: auto; /* Добавляем вертикальную прокрутку */
+            max-height: 500px; /* Ограничиваем высоту блока */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Конкурентный калькулятор</h1>
+
+        <!-- Форма для добавления выражения -->
+        <input type="text" id="expressionInput" placeholder="Введите арифметическое выражение">
+        <button onclick="addExpression()">Добавить выражение</button>
+
+        <!-- Кнопка для получения списка выражений -->
+        <button onclick="getExpressions()">Получить список выражений</button>
+
+        <!-- Форма для получения выражения по ID -->
+        <input type="text" id="expressionIdInput" placeholder="Введите ID выражения">
+        <button onclick="getExpressionById()">Получить выражение по ID</button>
+
+        <!-- Блок для отображения ответа -->
+        <div class="response" id="response"></div>
+    </div>
+
+    <script>
+        // Функция для добавления выражения
+        async function addExpression() {
+            const expression = document.getElementById('expressionInput').value;
+            if (!expression) {
+                alert("Введите выражение!");
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:8081/api/v1/calculate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ expression })
+                });
+                const data = await response.json();
+                document.getElementById('response').innerHTML = `Добавлено выражение:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+            } catch (error) {
+                document.getElementById('response').innerHTML = `Ошибка: ${error.message}`;
+            }
+        }
+
+        // Функция для получения списка выражений
+        async function getExpressions() {
+            try {
+                const response = await fetch(`http://localhost:8081/api/v1/expressions`);
+                const data = await response.json();
+                document.getElementById('response').innerHTML = `Список выражений:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+            } catch (error) {
+                document.getElementById('response').innerHTML = `Ошибка: ${error.message}\nСтатус код: ${response.status}`;
+            }
+        }
+
+        // Функция для получения выражения по ID
+        async function getExpressionById() {
+            const id = document.getElementById('expressionIdInput').value;
+            if (!id) {
+                alert("Введите ID выражения!");
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:8081/api/v1/expressions/${id}`);
+                
+                // Проверяем статус ответа
+                if (!response.ok) {
+                    // Если статус не в диапазоне 200-299, выводим статус код и текст ошибки
+                    document.getElementById('response').innerHTML = `Ошибка: ${response.statusText}\nСтатус код: ${response.status}`;
+                    return;
+                }
+
+                // Если статус успешный, разбираем JSON
+                const data = await response.json();
+                document.getElementById('response').innerHTML = `Выражение по ID:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+            } catch (error) {
+                document.getElementById('response').innerHTML = `Ошибка: ${error.message}\nСтатус код: ${response.status}`;
+            }
+        }
+    </script>
+</body>
+</html>
