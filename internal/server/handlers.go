@@ -121,12 +121,13 @@ func (s *Server) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 
 	expr := s.storage.GetExpressionByID(id - 1)
 
-	resp := &localExpression{
+	localExpr := localExpression{
 		ID:         expr.ID,
 		Expression: expr.Expression,
 		Status:     expr.Status,
 		Result:     expr.Result,
 	}
+	resp := GetExpressionResponce{Expression: localExpr}
 
 	w.WriteHeader(http.StatusOK) // 200
 	w.Header().Set("Content-type", "application/json")
@@ -187,7 +188,7 @@ func (s *Server) SubmitResult(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Failed to read result", http.StatusBadRequest) // 400
+		http.Error(w, "Failed to read result", http.StatusInternalServerError) // 500
 		return
 	}
 
