@@ -73,6 +73,22 @@ func (s *Server) StartRecover() {
 	}()
 }
 
+// Middleware для обработки CORS
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) RunServer() error {
 	ctx := s.ctx
 	logger := logger.FromContext(ctx)
@@ -98,7 +114,7 @@ func (s *Server) RunServer() error {
 	})
 
 	go func() error {
-		if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
+		if err := http.ListenAndServe(":"+s.cfg.Addr, enableCORS(mux)); err != nil {
 			logger.Error("Failed to launch server", zap.String("port", s.cfg.Addr))
 			return err
 		}

@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -115,14 +114,8 @@ func (s *Server) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := strconv.Atoi(parts[4])
-	if err != nil {
+	if err != nil || id < 1 || id > s.storage.GetLen() {
 		http.Error(w, "Invalid ID", http.StatusNotFound) // 404
-		return
-	}
-
-	if id > s.storage.GetLen() {
-		http.Error(w, "Invalid ID", http.StatusNotFound) // 404
-		log.Printf("Invalid ID: %v", id)
 		return
 	}
 
