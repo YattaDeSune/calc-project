@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/YattaDeSune/calc-project/internal/logger"
+	"go.uber.org/zap"
 )
 
 type AddExpressionRequest struct {
@@ -19,6 +22,9 @@ type AddExpressionResponce struct {
 
 // /calculate POST
 func (s *Server) AddExpression(w http.ResponseWriter, r *http.Request) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read expression", http.StatusBadRequest) // 400
@@ -50,7 +56,8 @@ func (s *Server) AddExpression(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response (AddExpression)", http.StatusInternalServerError) // 500
 		return
 	}
-	log.Printf("Add expression, id: %v", resp)
+
+	logger.Info("Add expression", zap.Int("id", resp.ID), zap.String("expression", req.Expression))
 }
 
 type localExpression struct {
@@ -66,6 +73,9 @@ type GetExpressionsResponce struct {
 
 // /expressions GET
 func (s *Server) GetExpressions(w http.ResponseWriter, r *http.Request) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	exprs := s.storage.GetExpressions()
 
 	var resp GetExpressionsResponce
@@ -84,7 +94,8 @@ func (s *Server) GetExpressions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response (GetExpressions)", http.StatusInternalServerError) // 500
 		return
 	}
-	log.Println("Get expressions:", resp)
+
+	logger.Info("Get expressions", zap.Any("expressions", resp))
 }
 
 type GetExpressionResponce struct {
@@ -93,6 +104,9 @@ type GetExpressionResponce struct {
 
 // /expression/:id GET
 func (s *Server) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	path := r.URL.Path
 	parts := strings.Split(path, "/")
 	if len(parts) != 5 {
@@ -127,7 +141,8 @@ func (s *Server) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response (GetExpressionByID)", http.StatusInternalServerError) // 500
 		return
 	}
-	log.Println("Get expression by ID:", resp)
+
+	logger.Info("Get expression by id", zap.Any("expression", resp))
 }
 
 type GetTaskResponce struct {
@@ -139,6 +154,9 @@ type GetTaskResponce struct {
 
 // /task GET
 func (s *Server) GetTask(w http.ResponseWriter, r *http.Request) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	task := s.storage.GetTaskForAgent()
 
 	if task == nil {
@@ -159,7 +177,8 @@ func (s *Server) GetTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response (GetTask)", http.StatusInternalServerError) // 500
 		return
 	}
-	log.Printf("Get task for agent, id: %v", task.ID)
+
+	logger.Info("Get task for agent", zap.Any("id", resp.ID))
 }
 
 type SubmitResultRequest struct {
@@ -170,6 +189,9 @@ type SubmitResultRequest struct {
 
 // /task POST
 func (s *Server) SubmitResult(w http.ResponseWriter, r *http.Request) {
+	// ctx := s.ctx
+	// logger := logger.FromContext(ctx)
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read result", http.StatusBadRequest) // 400
@@ -185,4 +207,6 @@ func (s *Server) SubmitResult(w http.ResponseWriter, r *http.Request) {
 
 	s.storage.SubmitTaskResult(&result)
 	w.WriteHeader(http.StatusOK) // 200
+
+	// logger.Info("Get task for agent", zap.Any("id", resp.ID))
 }

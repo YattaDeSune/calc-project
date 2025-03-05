@@ -14,6 +14,7 @@ var priority = map[string]int{
 	"~": 3, // unary -
 }
 
+// Приведение к ОПН
 func ToRPN(tokens []string) ([]string, error) {
 	var stack []string
 	var out []string
@@ -67,6 +68,7 @@ func ToRPN(tokens []string) ([]string, error) {
 	return out, nil
 }
 
+// Токенизация выражения
 func Tokenize(expression string) []string {
 	var tokens []string
 	var buffer strings.Builder

@@ -1,64 +1,84 @@
 package server
 
 import (
-	"log"
+	"context"
 	"net/http"
 	"time"
 
+	"github.com/YattaDeSune/calc-project/internal/logger"
 	"github.com/ilyakaznacheev/cleanenv"
+	"go.uber.org/zap"
 )
 
 type Config struct {
 	Addr string `env:"SERVER_PORT"`
 }
 
-func GetCfgFromEnv() *Config {
+func GetCfgFromEnv(ctx context.Context) *Config {
+	logger := logger.FromContext(ctx)
+
 	var cfg Config
 
 	err := cleanenv.ReadConfig(".env", &cfg)
+
+	var Addr string = "8081"
 	if err != nil {
-		log.Printf("Error loading config, loaded default values: %v", err)
+
+		logger.Error("Error loading config, loaded default values",
+			zap.Error(err),
+			zap.String("Addr", Addr),
+		)
 		return &Config{
-			Addr: "8081",
+			Addr: Addr,
 		}
 	}
 
 	if cfg.Addr == "" {
-		log.Println("Empty address, using default config values")
+		logger.Error("Empty address, using default config values",
+			zap.Error(err),
+			zap.String("Addr", Addr),
+		)
 		return &Config{
 			Addr: "8081",
 		}
 	}
 
-	log.Printf("Loaded config, port %v:", cfg)
+	logger.Info("Config loaded", zap.String("Addr", cfg.Addr))
 	return &cfg
 }
 
 type Server struct {
 	cfg     *Config
 	storage *Storage
+	ctx     context.Context
 }
 
-func New() *Server {
+func New(ctx context.Context) *Server {
 	return &Server{
-		cfg:     GetCfgFromEnv(),
-		storage: NewStorage(),
+		cfg:     GetCfgFromEnv(ctx),
+		storage: NewStorage(ctx),
+		ctx:     ctx,
 	}
 }
 
-// Фоновая проверка тасок на "живучесть", костыльная защита от падения агента
+// Проверка тасок на "живучесть", костыльная защита от падения агента
 func (s *Server) StartRecover() {
-	go func() {
+	ctx := s.ctx
+	func() {
 		for {
 			// Каждую минуту проверяем таски
 			time.Sleep(time.Minute)
-			s.storage.CheckAndRecoverTasks()
+			s.storage.CheckAndRecoverTasks(ctx)
 		}
 	}()
 }
 
 func (s *Server) RunServer() error {
-	s.StartRecover()
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
+	// Фоновая проверка раз в минуту
+	go s.StartRecover()
 
 	mux := http.NewServeMux()
 
@@ -77,9 +97,15 @@ func (s *Server) RunServer() error {
 		}
 	})
 
-	if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
-		return err
-	}
+	go func() error {
+		if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
+			logger.Error("Failed to launch server", zap.String("port", s.cfg.Addr))
+			return err
+		}
 
+		return nil
+	}()
+
+	logger.Info("Server launched", zap.String("port", s.cfg.Addr))
 	return nil
 }

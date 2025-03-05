@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -9,20 +10,24 @@ import (
 	"time"
 
 	"github.com/YattaDeSune/calc-project/internal/entities"
+	"github.com/YattaDeSune/calc-project/internal/logger"
 	"github.com/YattaDeSune/calc-project/pkg/calculation"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // Содержит в себе выражения, для каждого выражения - слайс "тасок"
 type Storage struct {
 	mu   *sync.Mutex
 	data []*entities.Expression
+	ctx  context.Context
 }
 
-func NewStorage() *Storage {
+func NewStorage(ctx context.Context) *Storage {
 	return &Storage{
 		mu:   &sync.Mutex{},
 		data: make([]*entities.Expression, 0),
+		ctx:  ctx,
 	}
 }
 
@@ -47,6 +52,9 @@ func (s *Storage) GetExpressionByID(id int) *entities.Expression {
 }
 
 func (s *Storage) AddExpression(expr string) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := len(s.data) + 1
@@ -61,7 +69,7 @@ func (s *Storage) AddExpression(expr string) {
 			Status:     entities.CompletedWithError, // завершено с ошибкой
 			Result:     err.Error(),
 		})
-		log.Printf("End with RPN error (AddExpression, 1): %v", err)
+		logger.Info("End with RPN error", zap.Error(err))
 		return
 	}
 
@@ -76,7 +84,7 @@ func (s *Storage) AddExpression(expr string) {
 			Status:     entities.CompletedWithError, // завершено с ошибкой
 			Result:     err.Error(),
 		})
-		log.Printf("End with RPN error (AddExpression, 2): %v", err)
+		logger.Info("End with RPN error", zap.Error(err))
 		return
 	}
 
@@ -98,13 +106,16 @@ func (s *Storage) AddExpression(expr string) {
 		}),
 	}
 	s.data = append(s.data, task)
-	log.Printf("Add first task (AddExpression): %v", task)
+	logger.Info("Add first task", zap.Any("task", task))
 }
 
 // TASKS
 
 // Меняем результат таски и запускаем следующую таску, либо добавляем результат выражения
 func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
+	ctx := s.ctx
+	logger := logger.FromContext(ctx)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -114,7 +125,7 @@ func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
 
 	// Если таска не "в прогрессе", значит либо она уже посчиталась, либо вернулась и посчитается позже
 	if expression.Tasks[len(expression.Tasks)-1].Status != entities.InProgress {
-		log.Printf("Task %s is not in progress, ignoring result", result.ID)
+		logger.Info("Task is not in progress, ignoring result", zap.String("id", result.ID))
 		return
 	}
 
@@ -123,7 +134,7 @@ func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
 		expression.Result = result.Error
 		expression.Tasks = nil                          // удаляем все таски
 		expression.Status = entities.CompletedWithError // завершено с ошибкой
-		log.Printf("Task error, expression with id %v completed with error", expression.ID)
+		logger.Info("Task error, expression completed with error", zap.Int("expression id", expression.ID))
 		return
 	}
 
@@ -132,7 +143,7 @@ func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
 		expression.Result = result.Result
 		expression.Tasks = nil                 // удаляем все таски
 		expression.Status = entities.Completed // завершено
-		log.Printf("Tasks completed, expression with id %v completed", expression.ID)
+		logger.Info("Tasks completed, expression completed", zap.Int("expression id", expression.ID))
 		return
 	}
 
@@ -145,7 +156,7 @@ func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
 		expression.Result = err.Error()
 		expression.Tasks = nil                          // удаляем все таски
 		expression.Status = entities.CompletedWithError // завершено с ошибкой
-		log.Printf("End with RPN error (SubmitTaskResult): %v", err)
+		logger.Info("End with RPN error", zap.Error(err))
 		return
 	}
 
@@ -160,7 +171,7 @@ func (s *Storage) SubmitTaskResult(result *SubmitResultRequest) {
 	})
 	expression.RPN = newRPN
 	expression.Stack = newStack
-	log.Printf("Add task (AddExpression): %v", expression.Tasks[len(expression.Tasks)-1])
+	logger.Info("Add task", zap.Any("task", expression.Tasks[len(expression.Tasks)-1]))
 }
 
 // Ищем таску для агента
@@ -183,7 +194,9 @@ func (s *Storage) GetTaskForAgent() *entities.Task {
 }
 
 // Проверка тасок на время исполнения
-func (s *Storage) CheckAndRecoverTasks() {
+func (s *Storage) CheckAndRecoverTasks(ctx context.Context) {
+	logger := logger.FromContext(ctx)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -193,7 +206,7 @@ func (s *Storage) CheckAndRecoverTasks() {
 				// Возвращаем задачу в статус accepted через 2 минуты
 				task.Status = entities.Accepted
 				task.LastUpdated = time.Now()
-				log.Printf("Task %s recovered to 'accepted' status", task.ID)
+				logger.Info("Task recovered to 'accepted' status", zap.String("task id", task.ID))
 			}
 		}
 	}
