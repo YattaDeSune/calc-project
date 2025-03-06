@@ -229,6 +229,7 @@ go run cmd/agent/main.go
 <a id="examples"></a>
 ## Examples 🔴
 **1. /calculation** - успешный ответ
+
 **Запрос**:
 ```
 curl --location 'localhost:8081/api/v1/calculate' \
@@ -246,6 +247,7 @@ curl --location 'localhost:8081/api/v1/calculate' \
 ---
 
 **1.2. /calculation** - неверные данные запроса
+
 **Запрос**:
 ```
 curl --location 'localhost:8081/api/v1/calculate' \
@@ -261,6 +263,7 @@ Cтатус **код** - <img src="https://img.shields.io/badge/status-422-red" 
 ---
 
 **2. /expressions** - успешный ответ
+
 **Запрос**:
 `curl --location 'localhost:8081/api/v1/expressions'`
 **Шаблон ответа**:
@@ -280,6 +283,7 @@ Cтатус **код** - <img src="https://img.shields.io/badge/status-200-brigh
 ---
 
 **3. /expression/:id** - успешный ответ
+
 **Запрос**:
 `curl --location 'localhost:8081/api/v1/expressions/1'`
 **Шаблон ответа** (при условии что выражение с id 1 существует):
@@ -293,6 +297,7 @@ Cтатус **код** - <img src="https://img.shields.io/badge/status-200-brigh
 ---
 
 **3.2. /expression/:id** - нет такого выражения
+
 **Запрос**:
 `curl --location 'localhost:8081/api/v1/expressions/aboba'`
 **Ответ**: 
