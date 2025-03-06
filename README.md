@@ -205,12 +205,8 @@ git clone https://github.com/YattaDeSune/calc-project.git
 cd calc-project
 ```
 
-**2. Установите используемые библиотеки**
+**2. Установите зависимости**
 ```shell
-go get github.com/google/uuid@v1.6.0
-go get github.com/ilyakaznacheev/cleanenv@v1.5.0
-go get github.com/stretchr/testify@v1.8.1
-go get go.uber.org/zap@v1.27.0
 go mod tidy
 ```
 
