@@ -5,7 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/YattaDeSune/calc-project/internal/auth"
+	"github.com/YattaDeSune/calc-project/internal/db"
 	"github.com/YattaDeSune/calc-project/internal/logger"
+	"github.com/YattaDeSune/calc-project/internal/middleware"
+	"github.com/gorilla/mux"
 	"github.com/ilyakaznacheev/cleanenv"
 	"go.uber.org/zap"
 )
@@ -21,7 +25,7 @@ func GetCfgFromEnv(ctx context.Context) *Config {
 
 	err := cleanenv.ReadConfig(".env", &cfg)
 
-	var Addr string = "8081"
+	Addr := "8081"
 	if err != nil {
 
 		logger.Error("Error loading config, loaded default values",
@@ -50,14 +54,27 @@ func GetCfgFromEnv(ctx context.Context) *Config {
 type Server struct {
 	cfg     *Config
 	storage *Storage
+	db      *db.Database
 	ctx     context.Context
+	jwt     *auth.JWTManager
 }
 
 func New(ctx context.Context) *Server {
+	logger := logger.FromContext(ctx)
+
+	db, err := db.New(ctx)
+	if err != nil {
+		logger.Fatal("Failed to create db", zap.Error(err))
+	}
+
 	return &Server{
 		cfg:     GetCfgFromEnv(ctx),
 		storage: NewStorage(ctx),
 		ctx:     ctx,
+		db:      db,
+
+		// безопасность придумают завтра)
+		jwt: auth.NewJWTManager("smeshariki2005", 24*time.Hour),
 	}
 }
 
@@ -73,22 +90,6 @@ func (s *Server) StartRecover() {
 	}()
 }
 
-// Middleware для обработки CORS
-func enableCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func (s *Server) RunServer() error {
 	ctx := s.ctx
 	logger := logger.FromContext(ctx)
@@ -96,25 +97,25 @@ func (s *Server) RunServer() error {
 	// Фоновая проверка раз в минуту
 	go s.StartRecover()
 
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
 
-	mux.HandleFunc("/api/v1/calculate", s.AddExpression)
-	mux.HandleFunc("/api/v1/expressions", s.GetExpressions)
-	mux.HandleFunc("/api/v1/expressions/", s.GetExpressionByID)
+	r.HandleFunc("/api/v1/register", s.Register).Methods("POST")
+	r.HandleFunc("/api/v1/login", s.Login).Methods("POST")
 
-	mux.HandleFunc("/api/v1/task", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			s.GetTask(w, r)
-		case http.MethodPost:
-			s.SubmitResult(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	r.HandleFunc("/api/v1/calculate", s.AddExpression).Methods("POST")
+	r.HandleFunc("/api/v1/expressions", s.GetExpressions).Methods("GET")
+	r.HandleFunc("/api/v1/expressions/{id}", s.GetExpressionByID).Methods("GET")
+
+	r.HandleFunc("/api/v1/task", s.GetTask).Methods("GET")
+	r.HandleFunc("/api/v1/task", s.SubmitResult).Methods("POST")
+
+	mux := middleware.AccessLog(ctx, r)
+	mux = middleware.AuthMiddleware(ctx, *s.jwt, mux)
+	mux = middleware.PanicRecover(ctx, mux)
+	mux = middleware.EnableCORS(mux)
 
 	go func() error {
-		if err := http.ListenAndServe(":"+s.cfg.Addr, enableCORS(mux)); err != nil {
+		if err := http.ListenAndServe(":"+s.cfg.Addr, mux); err != nil {
 			logger.Error("Failed to launch server", zap.String("port", s.cfg.Addr))
 			return err
 		}
