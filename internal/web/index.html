@@ -24,9 +24,27 @@
             padding: 10px;
             background-color: #f4f4f4;
             border: 1px solid #ddd;
-            white-space: pre-wrap; /* Для красивого отображения JSON */
-            overflow-y: auto; /* Добавляем вертикальную прокрутку */
-            max-height: 500px; /* Ограничиваем высоту блока */
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+        .auth-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e9f7ef;
+            border: 1px solid #b2d8c6;
+            border-radius: 5px;
+        }
+        .token-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 5px;
+            word-break: break-all;
+        }
+        .error {
+            color: #dc3545;
         }
     </style>
 </head>
@@ -34,8 +52,19 @@
     <div class="container">
         <h1>Конкурентный калькулятор</h1>
 
+        <!-- Секция авторизации -->
+        <div class="auth-section">
+            <h2>Авторизация</h2>
+            <input type="text" id="loginInput" placeholder="Логин">
+            <input type="password" id="passwordInput" placeholder="Пароль">
+            <button onclick="login()">Войти</button>
+            <button onclick="register()">Зарегистрироваться</button>
+            <button onclick="logout()">Выйти</button>
+            <div class="token-info" id="tokenInfo">Токен: не установлен</div>
+        </div>
+
         <!-- Форма для добавления выражения -->
-        <input type="text" id="expressionInput" placeholder="Введите арифметическое выражение">
+        <input type="text" id="expressionInput" placeholder="Введите арифметическое выражение (например, 2+2*2)">
         <button onclick="addExpression()">Добавить выражение</button>
 
         <!-- Кнопка для получения списка выражений -->
@@ -50,8 +79,122 @@
     </div>
 
     <script>
+        let jwtToken = localStorage.getItem('jwtToken');
+        updateTokenInfo();
+
+        // Обновление информации о токене
+        function updateTokenInfo() {
+            const tokenInfoElement = document.getElementById('tokenInfo');
+            if (jwtToken) {
+                tokenInfoElement.textContent = `Токен: ${jwtToken}`;
+                tokenInfoElement.style.backgroundColor = '#d4edda';
+            } else {
+                tokenInfoElement.textContent = 'Токен: не установлен';
+                tokenInfoElement.style.backgroundColor = '#fff3cd';
+            }
+        }
+
+        // Функция для выхода
+        function logout() {
+            jwtToken = null;
+            localStorage.removeItem('jwtToken');
+            updateTokenInfo();
+            document.getElementById('response').innerHTML = 'Вы успешно вышли из системы';
+        }
+
+        // Общая функция для выполнения запросов
+        async function makeRequest(url, method = 'GET', body = null) {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (jwtToken) {
+                headers['Authorization'] = `Bearer ${jwtToken}`;
+            }
+
+            try {
+                const options = {
+                    method,
+                    headers
+                };
+
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(url, options);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Ошибка при выполнении запроса:', error);
+                throw error;
+            }
+        }
+
+        // Функция для регистрации
+        async function register() {
+            const login = document.getElementById('loginInput').value;
+            const password = document.getElementById('passwordInput').value;
+            
+            if (!login || !password) {
+                alert("Введите логин и пароль!");
+                return;
+            }
+
+            try {
+                const data = await makeRequest(
+                    'http://localhost:8081/api/v1/register',
+                    'POST',
+                    { login, password }
+                );
+
+                jwtToken = data.token;
+                localStorage.setItem('jwtToken', jwtToken);
+                updateTokenInfo();
+                document.getElementById('response').innerHTML = `Успешная регистрация!\nТокен сохранен.\nТокен: ${data.token}`;
+            } catch (error) {
+                document.getElementById('response').innerHTML = `<span class="error">Ошибка регистрации: ${error.message}</span>`;
+            }
+        }
+
+        // Функция для входа
+        async function login() {
+            const login = document.getElementById('loginInput').value;
+            const password = document.getElementById('passwordInput').value;
+            
+            if (!login || !password) {
+                alert("Введите логин и пароль!");
+                return;
+            }
+
+            try {
+                const data = await makeRequest(
+                    'http://localhost:8081/api/v1/login',
+                    'POST',
+                    { login, password }
+                );
+
+                jwtToken = data.token;
+                localStorage.setItem('jwtToken', jwtToken);
+                updateTokenInfo();
+                document.getElementById('response').innerHTML = `Успешный вход!\nТокен сохранен.\nТокен: ${data.token}`;
+            } catch (error) {
+                document.getElementById('response').innerHTML = `<span class="error">Ошибка входа: ${error.message}</span>`;
+            }
+        }
+
         // Функция для добавления выражения
         async function addExpression() {
+            if (!jwtToken) {
+                alert("Сначала войдите или зарегистрируйтесь!");
+                return;
+            }
+
             const expression = document.getElementById('expressionInput').value;
             if (!expression) {
                 alert("Введите выражение!");
@@ -59,33 +202,40 @@
             }
 
             try {
-                const response = await fetch(`http://localhost:8081/api/v1/calculate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ expression })
-                });
-                const data = await response.json();
-                document.getElementById('response').innerHTML = `Добавлено выражение:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+                const data = await makeRequest(
+                    'http://localhost:8081/api/v1/calculate',
+                    'POST',
+                    { expression }
+                );
+
+                document.getElementById('response').innerHTML = `Добавлено выражение:\n${JSON.stringify(data, null, 2)}`;
             } catch (error) {
-                document.getElementById('response').innerHTML = `Ошибка: ${error.message}`;
+                document.getElementById('response').innerHTML = `<span class="error">Ошибка при добавлении выражения: ${error.message}</span>`;
             }
         }
 
         // Функция для получения списка выражений
         async function getExpressions() {
+            if (!jwtToken) {
+                alert("Сначала войдите или зарегистрируйтесь!");
+                return;
+            }
+
             try {
-                const response = await fetch(`http://localhost:8081/api/v1/expressions`);
-                const data = await response.json();
-                document.getElementById('response').innerHTML = `Список выражений:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+                const data = await makeRequest('http://localhost:8081/api/v1/expressions');
+                document.getElementById('response').innerHTML = `Список выражений:\n${JSON.stringify(data, null, 2)}`;
             } catch (error) {
-                document.getElementById('response').innerHTML = `Ошибка: ${error.message}\nСтатус код: ${response.status}`;
+                document.getElementById('response').innerHTML = `<span class="error">Ошибка при получении списка выражений: ${error.message}</span>`;
             }
         }
 
         // Функция для получения выражения по ID
         async function getExpressionById() {
+            if (!jwtToken) {
+                alert("Сначала войдите или зарегистрируйтесь!");
+                return;
+            }
+
             const id = document.getElementById('expressionIdInput').value;
             if (!id) {
                 alert("Введите ID выражения!");
@@ -93,20 +243,10 @@
             }
 
             try {
-                const response = await fetch(`http://localhost:8081/api/v1/expressions/${id}`);
-                
-                // Проверяем статус ответа
-                if (!response.ok) {
-                    // Если статус не в диапазоне 200-299, выводим статус код и текст ошибки
-                    document.getElementById('response').innerHTML = `Ошибка: ${response.statusText}\nСтатус код: ${response.status}`;
-                    return;
-                }
-
-                // Если статус успешный, разбираем JSON
-                const data = await response.json();
-                document.getElementById('response').innerHTML = `Выражение по ID:\n${JSON.stringify(data, null, 2)}\nСтатус код: ${response.status}`;
+                const data = await makeRequest(`http://localhost:8081/api/v1/expressions/${id}`);
+                document.getElementById('response').innerHTML = `Выражение по ID:\n${JSON.stringify(data, null, 2)}`;
             } catch (error) {
-                document.getElementById('response').innerHTML = `Ошибка: ${error.message}\nСтатус код: ${response.status}`;
+                document.getElementById('response').innerHTML = `<span class="error">Ошибка при получении выражения: ${error.message}</span>`;
             }
         }
     </script>
