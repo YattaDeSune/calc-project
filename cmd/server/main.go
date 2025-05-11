@@ -19,13 +19,21 @@ func main() {
 	ctxWithLogger := logger.WithLogger(ctxWithCancel, zapLogger)
 
 	server := server.New(ctxWithLogger)
+
 	// Запуск оркестратора в отдельной горутине чтобы не блокировать дальнейший код
 	go func() {
 		if err := server.RunServer(); err != nil {
-			zapLogger.Fatal("Failed to run server", zap.Error(err))
+			zapLogger.Fatal("Failed to run server (HTTP)", zap.Error(err))
 		}
 	}()
-	zapLogger.Info("Orchestrator launched")
+	zapLogger.Info("Orchestrator launched (HTTP)")
+
+	go func() {
+		if err := server.RunGRPCServer(); err != nil {
+			zapLogger.Fatal("Failed to run server (gRPC)", zap.Error(err))
+		}
+	}()
+	zapLogger.Info("Orchestrator launched (gRPC)")
 
 	// Обработка системных сигналов
 	sigChan := make(chan os.Signal, 1)

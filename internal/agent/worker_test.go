@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/YattaDeSune/calc-project/internal/logger"
+	pb "github.com/YattaDeSune/calc-project/internal/proto"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -20,8 +21,8 @@ func TestWorker_ProcessTask(t *testing.T) {
 
 	agent := &Agent{
 		cfg:           cfg,
-		taskChan:      make(chan *GetTaskResponse, 1),
-		readyTaskChan: make(chan *SendResultResponce, 1),
+		taskChan:      make(chan *pb.GetTaskResponse, 1),
+		readyTaskChan: make(chan *pb.SubmitResultRequest, 1),
 	}
 
 	ctx := logger.WithLogger(context.Background(), zap.NewNop())
@@ -31,8 +32,8 @@ func TestWorker_ProcessTask(t *testing.T) {
 
 	go agent.worker(ctx, cancel, 1)
 
-	task := &GetTaskResponse{
-		ID:        "123",
+	task := &pb.GetTaskResponse{
+		Id:        "123",
 		Arg1:      "10",
 		Arg2:      "5",
 		Operation: "+",
@@ -42,7 +43,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 
 	select {
 	case result := <-agent.readyTaskChan:
-		assert.Equal(t, "123", result.ID)
+		assert.Equal(t, "123", result.Id)
 		assert.Equal(t, 15.0, result.Result)
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for result")
@@ -59,8 +60,8 @@ func TestWorker_InvalidTask(t *testing.T) {
 
 	agent := &Agent{
 		cfg:           cfg,
-		taskChan:      make(chan *GetTaskResponse, 1),
-		readyTaskChan: make(chan *SendResultResponce, 1),
+		taskChan:      make(chan *pb.GetTaskResponse, 1),
+		readyTaskChan: make(chan *pb.SubmitResultRequest, 1),
 	}
 
 	ctx := logger.WithLogger(context.Background(), zap.NewNop())
@@ -69,8 +70,8 @@ func TestWorker_InvalidTask(t *testing.T) {
 
 	go agent.worker(ctx, cancel, 1)
 
-	task := &GetTaskResponse{
-		ID:        "123",
+	task := &pb.GetTaskResponse{
+		Id:        "123",
 		Arg1:      "10",
 		Arg2:      "5",
 		Operation: "invalid",
@@ -80,7 +81,7 @@ func TestWorker_InvalidTask(t *testing.T) {
 
 	select {
 	case result := <-agent.readyTaskChan:
-		assert.Equal(t, "123", result.ID)
+		assert.Equal(t, "123", result.Id)
 		assert.Equal(t, ErrInvalidOperation.Error(), result.Error)
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for result")
@@ -97,8 +98,8 @@ func TestWorker_DivisionByZero(t *testing.T) {
 
 	agent := &Agent{
 		cfg:           cfg,
-		taskChan:      make(chan *GetTaskResponse, 1),
-		readyTaskChan: make(chan *SendResultResponce, 1),
+		taskChan:      make(chan *pb.GetTaskResponse, 1),
+		readyTaskChan: make(chan *pb.SubmitResultRequest, 1),
 	}
 
 	ctx := logger.WithLogger(context.Background(), zap.NewNop())
@@ -107,8 +108,8 @@ func TestWorker_DivisionByZero(t *testing.T) {
 
 	go agent.worker(ctx, cancel, 1)
 
-	task := &GetTaskResponse{
-		ID:        "123",
+	task := &pb.GetTaskResponse{
+		Id:        "123",
 		Arg1:      "10",
 		Arg2:      "0",
 		Operation: "/",
@@ -118,7 +119,7 @@ func TestWorker_DivisionByZero(t *testing.T) {
 
 	select {
 	case result := <-agent.readyTaskChan:
-		assert.Equal(t, "123", result.ID)
+		assert.Equal(t, "123", result.Id)
 		assert.Equal(t, ErrDevisionByZero.Error(), result.Error)
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for result")

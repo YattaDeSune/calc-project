@@ -20,6 +20,7 @@ func main() {
 	ctxWithLogger := logger.WithLogger(ctxWithCancel, zapLogger)
 
 	agent := agent.New(ctxWithLogger)
+
 	// Запуск агента в отдельной горутине чтобы не блокировать дальнейший код
 	go func() {
 		if err := agent.RunAgent(ctxWithLogger, cancel); err != nil {

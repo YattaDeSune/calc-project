@@ -16,7 +16,7 @@ func AuthMiddleware(ctx context.Context, jwtManager auth.JWTManager, next http.H
 	logger := logger.FromContext(ctx)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/register" || r.URL.Path == "/api/v1/login" || r.URL.Path == "/api/v1/task" {
+		if r.URL.Path == "/api/v1/register" || r.URL.Path == "/api/v1/login" {
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -1,0 +1,25 @@
+syntax = "proto3";
+package proto;
+option go_package = "github.com/YattaDeSune/calc-project/internal/proto";
+
+service TaskService {
+    rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {}
+    rpc SubmitResult(SubmitResultRequest) returns (SubmitResultResponse) {}
+}
+
+message GetTaskRequest {}
+
+message GetTaskResponse {
+    string id = 1;
+    string arg1 = 2;
+    string arg2 = 3;
+    string operation = 4;
+}
+
+message SubmitResultRequest {
+    string id = 1;
+    double result = 2;
+    string error = 3;
+}
+
+message SubmitResultResponse {}

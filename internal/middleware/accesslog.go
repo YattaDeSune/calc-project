@@ -14,11 +14,6 @@ func AccessLog(ctx context.Context, next http.Handler) http.Handler {
 	logger := logger.FromContext(ctx)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/task" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		logger.Info("New request",
